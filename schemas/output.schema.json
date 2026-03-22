@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/output.schema.json",
+  "title": "StructuredEmailPayloadV1",
+  "description": "Schema for the object represented by structured_email_string in API v1.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "authors",
+    "first_author",
+    "co_first_authors",
+    "equal_contribution_detected",
+    "emails",
+    "pairs",
+    "shared_emails",
+    "unmatched_authors",
+    "unmatched_emails",
+    "stats"
+  ],
+  "properties": {
+    "authors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/author_summary"
+      }
+    },
+    "first_author": {
+      "description": "V1 definition: the first author by author order when author extraction succeeds.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/first_author"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "co_first_authors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/author_summary"
+      }
+    },
+    "equal_contribution_detected": {
+      "type": "boolean"
+    },
+    "first_author_email": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "first_author_region": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "CN",
+        "OVERSEAS",
+        "UNKNOWN",
+        null
+      ]
+    },
+    "emails": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/email_summary"
+      }
+    },
+    "pairs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pair_summary"
+      }
+    },
+    "shared_emails": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/shared_email_summary"
+      }
+    },
+    "unmatched_authors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unmatched_author_summary"
+      }
+    },
+    "unmatched_emails": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unmatched_email_summary"
+      }
+    },
+    "stats": {
+      "$ref": "#/$defs/stats"
+    }
+  },
+  "$defs": {
+    "author_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "author_raw",
+        "author_norm"
+      ],
+      "properties": {
+        "author_raw": {
+          "type": "string"
+        },
+        "author_norm": {
+          "type": "string"
+        },
+        "source_page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "author_index": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "markers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "first_author": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "author_raw",
+        "author_norm",
+        "source_page",
+        "reason"
+      ],
+      "properties": {
+        "author_raw": {
+          "type": "string"
+        },
+        "author_norm": {
+          "type": "string"
+        },
+        "source_page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "default": "first_by_author_order",
+          "description": "V1 default value is first_by_author_order."
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "email_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "email"
+      ],
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string",
+          "enum": [
+            "CN",
+            "OVERSEAS",
+            "UNKNOWN"
+          ]
+        },
+        "source_page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "pair_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "author_norm",
+        "email"
+      ],
+      "properties": {
+        "author_norm": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string",
+          "enum": [
+            "CN",
+            "OVERSEAS",
+            "UNKNOWN"
+          ]
+        },
+        "match_reason": {
+          "type": "string"
+        }
+      }
+    },
+    "shared_email_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "email"
+      ],
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "author_norms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unmatched_author_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "author_norm"
+      ],
+      "properties": {
+        "author_norm": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "unmatched_email_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "email"
+      ],
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "author_count",
+        "email_count",
+        "pair_count",
+        "shared_email_count",
+        "unmatched_author_count",
+        "unmatched_email_count",
+        "first_author_found"
+      ],
+      "properties": {
+        "author_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "email_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pair_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "shared_email_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmatched_author_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmatched_email_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "first_author_found": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

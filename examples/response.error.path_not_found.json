@@ -1,0 +1,14 @@
+{
+  "structured_email_string": "",
+  "stats": {
+    "author_count": 0,
+    "email_count": 0,
+    "pair_count": 0,
+    "shared_email_count": 0,
+    "unmatched_author_count": 0,
+    "unmatched_email_count": 0,
+    "first_author_found": false
+  },
+  "code": "PATH_NOT_FOUND",
+  "message": "pdf_path not found"
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/response.envelope.schema.json",
+  "title": "ExtractAuthorEmailsResponseEnvelopeV1",
+  "description": "Schema for the full external API response envelope in API v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "structured_email_string",
+    "stats",
+    "code",
+    "message"
+  ],
+  "properties": {
+    "structured_email_string": {
+      "type": "string",
+      "description": "JSON-serialized inner payload on success; empty string on error responses."
+    },
+    "stats": {
+      "$ref": "#/$defs/stats"
+    },
+    "code": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "stats": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "author_count",
+        "email_count",
+        "pair_count",
+        "shared_email_count",
+        "unmatched_author_count",
+        "unmatched_email_count",
+        "first_author_found"
+      ],
+      "properties": {
+        "author_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "email_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pair_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "shared_email_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmatched_author_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmatched_email_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "first_author_found": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

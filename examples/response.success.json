@@ -1,0 +1,14 @@
+{
+  "structured_email_string": "{\"authors\":[{\"author_raw\":\"Alice Wang\",\"author_norm\":\"Alice Wang\",\"source_page\":1,\"author_index\":0,\"markers\":[]},{\"author_raw\":\"Bob Li\",\"author_norm\":\"Bob Li\",\"source_page\":1,\"author_index\":1,\"markers\":[]}],\"first_author\":{\"author_raw\":\"Alice Wang\",\"author_norm\":\"Alice Wang\",\"source_page\":1,\"reason\":\"first_by_author_order\",\"confidence\":1.0},\"co_first_authors\":[],\"equal_contribution_detected\":false,\"first_author_email\":\"alice.wang@example.edu\",\"first_author_region\":\"OVERSEAS\",\"emails\":[{\"email\":\"alice.wang@example.edu\",\"region\":\"OVERSEAS\",\"source_page\":1},{\"email\":\"bob.li@example.edu\",\"region\":\"OVERSEAS\",\"source_page\":1}],\"pairs\":[{\"author_norm\":\"Alice Wang\",\"email\":\"alice.wang@example.edu\",\"region\":\"OVERSEAS\",\"match_reason\":\"example_only\"},{\"author_norm\":\"Bob Li\",\"email\":\"bob.li@example.edu\",\"region\":\"OVERSEAS\",\"match_reason\":\"example_only\"}],\"shared_emails\":[],\"unmatched_authors\":[],\"unmatched_emails\":[],\"stats\":{\"author_count\":2,\"email_count\":2,\"pair_count\":2,\"shared_email_count\":0,\"unmatched_author_count\":0,\"unmatched_email_count\":0,\"first_author_found\":true}}",
+  "stats": {
+    "author_count": 2,
+    "email_count": 2,
+    "pair_count": 2,
+    "shared_email_count": 0,
+    "unmatched_author_count": 0,
+    "unmatched_email_count": 0,
+    "first_author_found": true
+  },
+  "code": "OK",
+  "message": "success"
+}
