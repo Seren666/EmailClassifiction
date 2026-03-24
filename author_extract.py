@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from pdf_extract import PageText, extract_pages
 
@@ -51,6 +51,7 @@ _AFFILIATION_KEYWORDS = (
     "center",
     "centre",
     "college",
+    "cloud",
     "company",
     "corporation",
     "department",
@@ -75,10 +76,13 @@ _LOCATION_HINTS = (
     "china",
     "france",
     "germany",
+    "hong kong",
     "israel",
     "italy",
+    "korea",
     "province",
     "singapore",
+    "south korea",
     "uk",
     "usa",
 )
@@ -91,6 +95,14 @@ _MARKER_COMMA_REWRITES = (
 _INLINE_SEPARATOR_REWRITES = (
     (re.compile(r"(?<=[\*\u2217\u2020\u2021\u00a7\u00b6xXB#])(?=[A-Z][a-z])"), ", "),
     (re.compile(r"(\d[\*\u2217\u2020\u2021\u00a7\u00b6xXB#]{0,3})(?=[A-Z][a-z])"), r"\1, "),
+)
+_AFFILIATION_LINE_RE = re.compile(r"^\s*([a-z])(?:\s|[A-Z])")
+_ATTACHED_MARKER_SYMBOLS_RE = re.compile(r"[\*\u2217\u2020\u2021\u00a7\u00b6xXB#]")
+_ATTACHED_MARKER_TRAILER_RE = re.compile(
+    r"^(?P<base>.*\b[A-Za-z][A-Za-z'鈥檂\-]*?)(?P<attached>[a-z])(?P<trailer>(?:\s*,\s*(?:[a-z]|[\*\u2217\u2020\u2021\u00a7\u00b6xXB#])+)+)\s*$"
+)
+_TERMINAL_ATTACHED_MARKER_RE = re.compile(
+    r"^(?P<base>.*\b[A-Za-z][A-Za-z'鈥檂\-]*?)(?P<attached>[a-z])\s*$"
 )
 
 
@@ -165,7 +177,16 @@ def _extract_from_line_entries(
     if not scoped_lines:
         return []
 
-    parsed_by_line = [_parse_author_line(line.text) for line in scoped_lines]
+    affiliation_markers = _detect_affiliation_markers(scoped_lines)
+    attached_marker_mode = _has_attached_marker_mode(scoped_lines, affiliation_markers)
+    parsed_by_line = [
+        _parse_author_line(
+            line.text,
+            affiliation_markers=affiliation_markers,
+            allow_terminal_affiliation_marker=attached_marker_mode,
+        )
+        for line in scoped_lines
+    ]
     start_index = _find_author_start(scoped_lines, parsed_by_line)
     if start_index is None:
         return []
@@ -202,7 +223,11 @@ def _extract_from_line_entries(
     deduped = _dedupe_candidates(candidates)
     if author_chunks:
         combined_text = ", ".join(_merge_author_chunks(author_chunks))
-        combined_parsed = _parse_author_line(combined_text)
+        combined_parsed = _parse_author_line(
+            combined_text,
+            affiliation_markers=affiliation_markers,
+            allow_terminal_affiliation_marker=attached_marker_mode,
+        )
         if len(combined_parsed) > len(deduped):
             combined_candidates = [
                 AuthorCandidate(
@@ -225,6 +250,8 @@ def _extract_from_blocks(page: PageText) -> list[AuthorCandidate]:
         return []
 
     stop_y = _find_stop_y(_page_line_entries(page))
+    affiliation_markers = _detect_affiliation_markers(_page_line_entries(page))
+    attached_marker_mode = bool(affiliation_markers)
     block_candidates: list[AuthorCandidate] = []
     blocks = sorted(page.blocks, key=lambda item: _bbox_key(item.get("bbox")))
     for block in blocks:
@@ -236,7 +263,11 @@ def _extract_from_blocks(page: PageText) -> list[AuthorCandidate]:
             break
         if _is_margin_noise(text):
             continue
-        for raw, normalized, markers in _parse_author_line(text):
+        for raw, normalized, markers in _parse_author_line(
+            text,
+            affiliation_markers=affiliation_markers,
+            allow_terminal_affiliation_marker=attached_marker_mode,
+        ):
             block_candidates.append(
                 AuthorCandidate(
                     raw=raw,
@@ -318,22 +349,53 @@ def _find_stop_y(line_entries: list[_LineEntry]) -> float | None:
     return None
 
 
-def _parse_author_line(text: str) -> list[tuple[str, str, list[str]]]:
+def _parse_author_line(
+    text: str,
+    *,
+    affiliation_markers: set[str] | None = None,
+    allow_terminal_affiliation_marker: bool = False,
+) -> list[tuple[str, str, list[str]]]:
     normalized = _normalize_text(text)
+
+    prefix_author = _parse_affiliation_tail_author_line(
+        normalized,
+        affiliation_markers=affiliation_markers or set(),
+        allow_terminal_affiliation_marker=allow_terminal_affiliation_marker,
+    )
+    if prefix_author:
+        return _dedupe_line_results(prefix_author)
+
     if not _looks_like_author_carrier(normalized):
         return []
 
     prepared = _prepare_author_line(normalized)
     explicit_segments = _split_explicit_segments(prepared)
+    terminal_marker_mode = _should_strip_terminal_affiliation_markers(
+        explicit_segments,
+        affiliation_markers or set(),
+        allow_terminal_affiliation_marker=allow_terminal_affiliation_marker,
+    )
 
     results: list[tuple[str, str, list[str]]] = []
     for segment in explicit_segments:
-        results.extend(_parse_author_segment(segment))
+        results.extend(
+            _parse_author_segment(
+                segment,
+                affiliation_markers=affiliation_markers or set(),
+                allow_terminal_affiliation_marker=terminal_marker_mode,
+            )
+        )
 
     if results:
         return _dedupe_line_results(results)
 
-    return _dedupe_line_results(_parse_author_segment(prepared))
+    return _dedupe_line_results(
+        _parse_author_segment(
+            prepared,
+            affiliation_markers=affiliation_markers or set(),
+            allow_terminal_affiliation_marker=terminal_marker_mode,
+        )
+    )
 
 
 def _prepare_author_line(text: str) -> str:
@@ -364,19 +426,61 @@ def _split_explicit_segments(text: str) -> list[str]:
     return segments
 
 
-def _parse_author_segment(segment: str) -> list[tuple[str, str, list[str]]]:
+def _parse_author_segment(
+    segment: str,
+    *,
+    affiliation_markers: set[str],
+    allow_terminal_affiliation_marker: bool,
+) -> list[tuple[str, str, list[str]]]:
     cleaned = segment.strip(" ,;")
     if not cleaned or not _looks_like_author_carrier(cleaned):
         return []
 
-    single = _parse_single_author(cleaned)
-    if single:
-        return [single]
+    sanitized, attached_markers = _strip_attached_marker_suffix(
+        cleaned,
+        affiliation_markers=affiliation_markers,
+        allow_terminal_affiliation_marker=allow_terminal_affiliation_marker,
+    )
 
-    multi = _parse_multiple_authors(cleaned)
+    single = _parse_single_author(sanitized)
+    if single:
+        raw, normalized, markers = single
+        return [(raw, normalized, _merge_marker_lists(attached_markers, markers))]
+
+    multi = _parse_multiple_authors(sanitized)
     if multi:
+        if attached_markers and len(multi) == 1:
+            raw, normalized, markers = multi[0]
+            return [(raw, normalized, _merge_marker_lists(attached_markers, markers))]
         return multi
 
+    return []
+
+
+def _parse_affiliation_tail_author_line(
+    text: str,
+    *,
+    affiliation_markers: set[str],
+    allow_terminal_affiliation_marker: bool,
+) -> list[tuple[str, str, list[str]]]:
+    if "," not in text:
+        return []
+
+    first_segment, _, tail = text.partition(",")
+    if not tail.strip():
+        return []
+
+    tail_lower = tail.lower()
+    if not _has_affiliation_or_location_signal(tail_lower):
+        return []
+
+    parsed = _parse_author_segment(
+        first_segment.strip(),
+        affiliation_markers=affiliation_markers,
+        allow_terminal_affiliation_marker=allow_terminal_affiliation_marker,
+    )
+    if len(parsed) == 1:
+        return parsed
     return []
 
 
@@ -442,7 +546,7 @@ def _build_author_from_match(match: re.Match[str]) -> tuple[str, str, list[str]]
         suffix = f" {name_tokens[-1]}{suffix}"
         raw_name = " ".join(name_tokens[:-1])
     raw = f"{raw_name}{suffix}".strip()
-    normalized = _normalize_author_name(raw_name)
+    normalized = _normalize_person_like_name(_normalize_author_name(raw_name))
     markers = _extract_markers(suffix)
     if not _is_person_name(normalized):
         return None
@@ -485,6 +589,23 @@ def _looks_like_author_carrier(text: str) -> bool:
     if re.fullmatch(r"[A-Z\s]{2,}", text) and " " not in text.strip():
         return False
     return True
+
+
+def _has_affiliation_or_location_signal(text: str) -> bool:
+    return any(keyword in text for keyword in _AFFILIATION_KEYWORDS) or any(
+        hint in text for hint in _LOCATION_HINTS
+    )
+
+
+def _normalize_person_like_name(value: str) -> str:
+    tokens = value.split()
+    alpha_tokens = [re.sub(r"[^A-Za-z]", "", token) for token in tokens]
+    if alpha_tokens and all(token.isupper() for token in alpha_tokens if len(token) > 1):
+        return " ".join(
+            token.lower() if token.lower() in _CONNECTOR_TOKENS else token.title()
+            for token in tokens
+        ).strip(" ,;")
+    return value
 
 
 def _find_author_start(
@@ -569,6 +690,8 @@ def _is_person_name(value: str) -> bool:
     if not value:
         return False
     lowered = value.lower()
+    if lowered in _LOCATION_HINTS:
+        return False
     if any(keyword in lowered for keyword in _AFFILIATION_KEYWORDS):
         return False
     if any(phrase in lowered for phrase in _NON_AUTHOR_PHRASES):
@@ -577,8 +700,6 @@ def _is_person_name(value: str) -> bool:
     if len(tokens) < 2 or len(tokens) > 6:
         return False
     if any(not _is_name_token(token) for token in tokens):
-        return False
-    if all(token.isupper() for token in tokens if len(token) > 1):
         return False
     return True
 
@@ -679,6 +800,111 @@ def _normalize_text(text: str) -> str:
 def _compact_snippet(text: str, limit: int = 220) -> str:
     snippet = re.sub(r"\s+", " ", text).strip()
     return snippet[:limit]
+
+
+def _detect_affiliation_markers(line_entries: Sequence[_LineEntry]) -> set[str]:
+    markers: set[str] = set()
+    for line in line_entries:
+        text = _normalize_text(line.text)
+        match = _AFFILIATION_LINE_RE.match(text)
+        if match:
+            markers.add(match.group(1))
+    return markers
+
+
+def _has_attached_marker_mode(
+    line_entries: Sequence[_LineEntry],
+    affiliation_markers: set[str],
+) -> bool:
+    if not affiliation_markers:
+        return False
+    for line in line_entries:
+        text = _normalize_text(line.text)
+        if _is_stop_line(text):
+            break
+        if _ATTACHED_MARKER_TRAILER_RE.search(text):
+            return True
+        segments = _split_explicit_segments(_prepare_author_line(text))
+        if _should_strip_terminal_affiliation_markers(
+            segments,
+            affiliation_markers,
+            allow_terminal_affiliation_marker=True,
+        ):
+            return True
+    return False
+
+
+def _should_strip_terminal_affiliation_markers(
+    segments: Sequence[str],
+    affiliation_markers: set[str],
+    *,
+    allow_terminal_affiliation_marker: bool,
+) -> bool:
+    if not allow_terminal_affiliation_marker or not affiliation_markers or len(segments) < 2:
+        return False
+
+    endings: list[str] = []
+    for segment in segments:
+        cleaned = segment.strip(" ,;")
+        if not cleaned:
+            return False
+        explicit = _ATTACHED_MARKER_TRAILER_RE.match(cleaned)
+        if explicit:
+            attached = explicit.group("attached")
+            if attached not in affiliation_markers:
+                return False
+            endings.append(attached)
+            continue
+        last_token = cleaned.split()[-1].strip(" ,;")
+        if len(last_token) < 3:
+            return False
+        ending = last_token[-1].lower()
+        if ending not in affiliation_markers:
+            return False
+        endings.append(ending)
+    return len(set(endings)) >= 2
+
+
+def _strip_attached_marker_suffix(
+    segment: str,
+    *,
+    affiliation_markers: set[str],
+    allow_terminal_affiliation_marker: bool,
+) -> tuple[str, list[str]]:
+    explicit = _ATTACHED_MARKER_TRAILER_RE.match(segment)
+    if explicit:
+        base = explicit.group("base").strip(" ,;")
+        attached = explicit.group("attached")
+        trailer = explicit.group("trailer") or ""
+        if (not affiliation_markers or attached in affiliation_markers) and _parse_single_author(base):
+            return base, [attached, *_extract_attached_markers(trailer)]
+
+    if allow_terminal_affiliation_marker and affiliation_markers:
+        terminal = _TERMINAL_ATTACHED_MARKER_RE.match(segment)
+        if terminal:
+            base = terminal.group("base").strip(" ,;")
+            attached = terminal.group("attached")
+            if attached in affiliation_markers and _parse_single_author(base):
+                return base, [attached]
+
+    return segment, []
+
+
+def _extract_attached_markers(value: str) -> list[str]:
+    markers: list[str] = []
+    for char in value:
+        if char.islower() or _ATTACHED_MARKER_SYMBOLS_RE.fullmatch(char):
+            markers.append(char)
+    return markers
+
+
+def _merge_marker_lists(left: Sequence[str], right: Sequence[str]) -> list[str]:
+    merged: list[str] = []
+    for marker in [*left, *right]:
+        normalized = marker.strip()
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+    return merged
 
 
 def _candidate_confidence(base_confidence: float, markers: list[str], raw: str) -> float:

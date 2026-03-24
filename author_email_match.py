@@ -354,7 +354,11 @@ def _score_pair(
 def _match_local_part(author: _AuthorProfile, email: _EmailProfile) -> _RuleMatch | None:
     local = email.local_letters
     if not local or not author.tokens:
-        return None
+        return _snippet_name_match(author, email)
+
+    snippet_match = _snippet_name_match(author, email)
+    if snippet_match is not None:
+        return snippet_match
 
     token_combo = _tokenized_combo_match(author, email)
     if token_combo is not None:
@@ -396,6 +400,25 @@ def _match_local_part(author: _AuthorProfile, email: _EmailProfile) -> _RuleMatc
         return weak_match
 
     return None
+
+
+def _snippet_name_match(author: _AuthorProfile, email: _EmailProfile) -> _RuleMatch | None:
+    snippet_ascii = _to_ascii(email.candidate.source_snippet)
+    if not snippet_ascii or not author.normalized_ascii:
+        return None
+    email_text = email.candidate.normalized.lower()
+    author_pat = re.escape(author.normalized_ascii)
+    email_pat = re.escape(email_text)
+    before_email = re.search(rf"{author_pat}\s*[,(:-]?\s*{email_pat}", snippet_ascii)
+    after_email = re.search(rf"{email_pat}\s*(?:\(|,)?\s*{author_pat}", snippet_ascii)
+    if not before_email and not after_email:
+        return None
+    return _RuleMatch(
+        rule="snippet_name_match",
+        score=0.95,
+        category="strong",
+        note=f"source snippet explicitly names author={author.normalized_ascii}",
+    )
 
 
 def _direct_variants(author: _AuthorProfile) -> set[str]:
