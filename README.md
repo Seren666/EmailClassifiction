@@ -1,36 +1,45 @@
 # Author Email Extractor
 
-## 项目简介
+> 一个本地可运行的微服务：输入论文 PDF 路径，输出作者、邮箱、作者-邮箱匹配结果，以及 `first_author` / `first_author_email` 等关键字段。
 
-这是一个本地可运行的 Author Email Extractor 微服务。
+## 项目定位
 
-输入：
+| 维度 | 说明 |
+| --- | --- |
+| 📥 输入 | `pdf_path` |
+| 📤 输出 | `structured_email_string`、`stats`、`code`、`message` |
+| 📌 V1 语义 | `first_author` 永远表示作者顺序上的第一作者 |
+| 📌 V1 约束 | `first_author_email` 只能来自已确认 pair |
+| 📌 返回格式 | `structured_email_string` 是 JSON 字符串，不是对象 |
 
-- `pdf_path`
+这个仓库适合：
 
-输出：
+- 需要在本地从论文 PDF 中抽取作者和邮箱的人
+- 需要通过 HTTP 接口调用结构化结果的人
+- 需要重点关注 `first_author`、`first_author_email`、`pairs` 等字段的人
 
-- `structured_email_string`
-- `stats`
-- `code`
-- `message`
+## 快速导航
 
-V1 中：
+- [⚡ 3 分钟跑通](#-3-分钟跑通)
+- [🧭 项目流程](#-项目流程)
+- [🚀 启动服务](#-启动服务)
+- [🖥️ 推荐使用方式](#️-推荐使用方式)
+- [🔧 更多调用方式](#-更多调用方式)
+- [📦 请求与响应说明](#-请求与响应说明)
+- [❗ 错误码说明](#-错误码说明)
+- [✅ 快速验收](#-快速验收)
+- [❓ FAQ](#-faq)
+- [📎 已知限制](#-已知限制)
+- [📚 进一步阅读](#-进一步阅读)
 
-- `first_author` 永远表示作者顺序上的第一作者
-- `first_author_email` 只能来自已确认 pair
-- `structured_email_string` 是 JSON 字符串，不是对象
+## ⚡ 3 分钟跑通
 
-## 进一步阅读
+### 1. 安装依赖
 
-- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)
+建议环境：
 
-## 环境要求
-
-- 建议 Python `3.10+`
-- 建议使用虚拟环境
-
-安装依赖：
+- Python `3.10+`
+- 虚拟环境
 
 ```bash
 python -m venv .venv
@@ -50,9 +59,48 @@ macOS / Linux 激活虚拟环境：
 source .venv/bin/activate
 ```
 
-## 启动服务
+### 2. 启动服务
 
 在项目根目录执行：
+
+```bash
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+### 3. 选择一种方式调用
+
+- 浏览器打开：`http://127.0.0.1:8000/`
+- PowerShell 执行：`.\call_api.ps1 "<ABSOLUTE_PDF_PATH>"`
+- Python 执行：`python client.py "<ABSOLUTE_PDF_PATH>"`
+
+### 4. 先看结果中的这几个字段
+
+- `code`
+- `first_author`
+- `first_author_email`
+
+## 🧭 项目流程
+
+这个项目的主链路可以概括为：
+
+```mermaid
+flowchart LR
+    A[pdf_path] --> B[PDF 文本抽取]
+    B --> C[邮箱抽取]
+    B --> D[作者抽取]
+    C --> E[作者-邮箱匹配]
+    D --> E
+    E --> F[结构化组装]
+    F --> G[API 返回]
+```
+
+如果你只关心“先怎么理解它”，可以先记住下面这句话：
+
+> 先抽文本，再抽邮箱，再抽作者，再做匹配，再组装结果，最后通过 API 返回。
+
+## 🚀 启动服务
+
+服务启动命令：
 
 ```bash
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
@@ -68,7 +116,9 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000
 
 - `POST http://127.0.0.1:8000/extract-author-emails`
 
-## 最推荐的使用方式：浏览器极简页面
+## 🖥️ 推荐使用方式
+
+### 方式 1：浏览器极简页面
 
 这是交付给普通调用者时最省操作的方式。
 
@@ -98,30 +148,7 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000
 C:/path/to/file.pdf
 ```
 
-## /docs 使用方式
-
-如果你更习惯 Swagger UI：
-
-1. 打开 `http://127.0.0.1:8000/docs`
-2. 找到 `POST /extract-author-emails`
-3. 点击 `Try it out`
-4. 输入：
-
-```json
-{
-  "pdf_path": "<ABSOLUTE_PDF_PATH>"
-}
-```
-
-5. 点击 `Execute`
-6. 查看返回中的：
-   - `code`
-   - `message`
-   - `structured_email_string`
-
-如果要看 `first_author` 和 `first_author_email`，需要把 `structured_email_string` 再解析一次。
-
-## Windows PowerShell 调用方式
+### 方式 2：Windows PowerShell
 
 这是主要推荐的命令行调用方式。
 
@@ -163,7 +190,33 @@ $payload = $resp.structured_email_string | ConvertFrom-Json
 $resp
 ```
 
-## Windows curl 调用方式
+### 方式 3：Swagger UI (`/docs`)
+
+如果你更习惯 Swagger UI：
+
+1. 打开 `http://127.0.0.1:8000/docs`
+2. 找到 `POST /extract-author-emails`
+3. 点击 `Try it out`
+4. 输入：
+
+```json
+{
+  "pdf_path": "<ABSOLUTE_PDF_PATH>"
+}
+```
+
+5. 点击 `Execute`
+6. 查看返回中的：
+   - `code`
+   - `message`
+   - `structured_email_string`
+
+如果要看 `first_author` 和 `first_author_email`，需要把 `structured_email_string` 再解析一次。
+
+## 🔧 更多调用方式
+
+<details>
+<summary>Windows curl</summary>
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/extract-author-emails" ^
@@ -171,7 +224,10 @@ curl -X POST "http://127.0.0.1:8000/extract-author-emails" ^
   -d "{\"pdf_path\":\"C:/path/to/file.pdf\"}"
 ```
 
-## macOS / Linux curl 调用方式
+</details>
+
+<details>
+<summary>macOS / Linux curl</summary>
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/extract-author-emails" \
@@ -181,7 +237,10 @@ curl -X POST "http://127.0.0.1:8000/extract-author-emails" \
   }'
 ```
 
-## Python requests 调用方式
+</details>
+
+<details>
+<summary>Python requests</summary>
 
 推荐直接使用项目自带客户端：
 
@@ -223,7 +282,10 @@ print("first_author =", payload.get("first_author"))
 print("first_author_email =", payload.get("first_author_email"))
 ```
 
-## Postman / Apifox / 类似客户端
+</details>
+
+<details>
+<summary>Postman / Apifox / 类似客户端</summary>
 
 配置方式：
 
@@ -240,7 +302,10 @@ print("first_author_email =", payload.get("first_author_email"))
 }
 ```
 
-## 可选简化方式：call_api.ps1
+</details>
+
+<details>
+<summary>可选简化方式：<code>call_api.ps1</code></summary>
 
 如果你不想手写 JSON body，可以使用这个更省事的包装脚本。
 
@@ -272,7 +337,10 @@ powershell -ExecutionPolicy Bypass -File .\call_api.ps1 "<ABSOLUTE_PDF_PATH>"
 .\call_api.ps1 "<ABSOLUTE_PDF_PATH>" -ShowFullResponse
 ```
 
-## 可选简化方式：client.py
+</details>
+
+<details>
+<summary>可选简化方式：<code>client.py</code></summary>
 
 如果你更习惯直接运行一个 Python 包装脚本，也可以使用这个客户端。
 
@@ -298,9 +366,11 @@ python client.py "<ABSOLUTE_PDF_PATH>" --base-url http://127.0.0.1:8767
 python client.py "<ABSOLUTE_PDF_PATH>" --show-full-response
 ```
 
-## 请求与响应说明
+</details>
 
-请求体：
+## 📦 请求与响应说明
+
+### 请求体
 
 ```json
 {
@@ -308,17 +378,19 @@ python client.py "<ABSOLUTE_PDF_PATH>" --show-full-response
 }
 ```
 
-成功响应顶层字段：
+### 成功响应顶层字段
 
-- `structured_email_string`
-- `stats`
-- `code`
-- `message`
+| 字段 | 说明 |
+| --- | --- |
+| `structured_email_string` | JSON 序列化后的结构化结果 |
+| `stats` | 摘要计数信息 |
+| `code` | 稳定结果码 |
+| `message` | 人类可读的简短消息 |
 
-注意：
+### 重要说明
 
-- `structured_email_string` 是 JSON 字符串，不是对象
-- 要访问 `first_author`、`first_author_email`、`pairs`，需要先做二次解析
+> `structured_email_string` 是 JSON 字符串，不是对象。  
+> 要访问 `first_author`、`first_author_email`、`pairs`，需要先做二次解析。
 
 示意：
 
@@ -339,44 +411,17 @@ first_author_email = payload["first_author_email"]
 - 未匹配邮箱数量
 - 是否找到 `first_author`
 
-## 错误码说明
+## ❗ 错误码说明
 
-### `INVALID_REQUEST`
+| `code` | 触发场景 |
+| --- | --- |
+| `INVALID_REQUEST` | 缺少 `pdf_path`、`pdf_path` 为空、请求体不是合法 JSON 对象 |
+| `PATH_NOT_FOUND` | `pdf_path` 指向的文件不存在，或路径不可访问 |
+| `PARSE_FAILED` | 文件不是合法 PDF，或 PDF 解析/抽取链路失败 |
+| `NO_EMAIL_FOUND` | PDF 可以解析，但没有抽取到任何邮箱候选 |
+| `INTERNAL_ERROR` | 未预期的内部异常 |
 
-触发场景：
-
-- 缺少 `pdf_path`
-- `pdf_path` 为空
-- 请求体不是合法 JSON 对象
-
-### `PATH_NOT_FOUND`
-
-触发场景：
-
-- `pdf_path` 指向的文件不存在
-- 路径不可访问
-
-### `PARSE_FAILED`
-
-触发场景：
-
-- 文件不是合法 PDF
-- PDF 解析或抽取链路失败
-
-### `NO_EMAIL_FOUND`
-
-触发场景：
-
-- PDF 可以解析
-- 但没有抽取到任何邮箱候选
-
-### `INTERNAL_ERROR`
-
-触发场景：
-
-- 未预期的内部异常
-
-## 快速验收
+## ✅ 快速验收
 
 最短路径：
 
@@ -391,7 +436,7 @@ first_author_email = payload["first_author_email"]
    - `first_author`
    - `first_author_email`
 
-## FAQ
+## ❓ FAQ
 
 ### `/docs` 页面没有输入框怎么办
 
@@ -428,10 +473,17 @@ first_author_email = payload["first_author_email"]
 
 可以直接传，只要整个 JSON 字符串合法、路径真实存在即可。
 
-## 已知限制
+## 📎 已知限制
 
 - 只看首页和必要时前两页
 - OCR 很差的 PDF 可能失败
 - 共同一作不会改变 V1 的 `first_author` 语义
 - 不会为了 `first_author_email` 反向强配邮箱
 - 如果邮箱不在前两页，`first_author_email` 可能为 `null`
+
+## 📚 进一步阅读
+
+- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)
+
+README 更偏向“怎么运行、怎么调用、怎么理解接口返回”。  
+如果你想从维护者视角快速看懂项目结构、模块职责、数据流和 V1 规则，建议继续阅读 `PROJECT_OVERVIEW.md`。
