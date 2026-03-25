@@ -403,6 +403,12 @@ def _prepare_author_line(text: str) -> str:
     for pattern, replacement in _MARKER_COMMA_REWRITES:
         prepared = pattern.sub(replacement, prepared)
     prepared = re.sub(r"\s*&\s*", ", ", prepared)
+    prepared = re.sub(
+        r"(?<=[\*\u2217\u2020\u2021\u00a7\u00b6xXB#])\s*and\s+(?=[A-Z])",
+        ", ",
+        prepared,
+        flags=re.IGNORECASE,
+    )
     prepared = re.sub(r"\s+\band\b\s+", ", ", prepared, flags=re.IGNORECASE)
     for pattern, replacement in _INLINE_SEPARATOR_REWRITES:
         prepared = pattern.sub(replacement, prepared)
@@ -479,8 +485,22 @@ def _parse_affiliation_tail_author_line(
         affiliation_markers=affiliation_markers,
         allow_terminal_affiliation_marker=allow_terminal_affiliation_marker,
     )
-    if len(parsed) == 1:
+    if parsed:
         return parsed
+
+    prepared_prefix = _prepare_author_line(first_segment.strip())
+    explicit_segments = _split_explicit_segments(prepared_prefix)
+    results: list[tuple[str, str, list[str]]] = []
+    for segment in explicit_segments:
+        results.extend(
+            _parse_author_segment(
+                segment,
+                affiliation_markers=affiliation_markers,
+                allow_terminal_affiliation_marker=allow_terminal_affiliation_marker,
+            )
+        )
+    if results:
+        return _dedupe_line_results(results)
     return []
 
 

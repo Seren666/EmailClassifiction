@@ -1,0 +1,7 @@
+# Python bytecode and cache directories
+__pycache__/
+*.pyc
+
+# Local smoke-test temporary artifacts
+.step8_smoke_artifacts/
+step8_smoke__*/
